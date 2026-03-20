@@ -25,7 +25,11 @@ router.post('/register', async (req, res) => {
         res.status(201).json({ token, user: user.toJSON() });
     } catch (err) {
         console.error('Register error:', err);
-        res.status(500).json({ message: 'Ошибка сервера при регистрации' });
+        res.status(500).json({
+            message: 'Ошибка сервера при регистрации',
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
     }
 });
 
@@ -48,7 +52,11 @@ router.post('/login', async (req, res) => {
         res.json({ token, user: user.toJSON() });
     } catch (err) {
         console.error('Login error:', err);
-        res.status(500).json({ message: 'Ошибка сервера при входе' });
+        res.status(500).json({
+            message: 'Ошибка сервера при входе',
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
     }
 });
 

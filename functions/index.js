@@ -18,7 +18,11 @@ let isConnected = false;
 const connectDB = async () => {
   if (isConnected) return;
   const uri = process.env.MONGO_URI || functions.config().mongo?.uri || 'mongodb+srv://scott:314159265359@indexess.bq2wcic.mongodb.net/utility-app?appName=Indexess';
-  await mongoose.connect(uri);
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    family: 4 // Use IPv4
+  });
   isConnected = true;
   console.log('MongoDB connected');
 };

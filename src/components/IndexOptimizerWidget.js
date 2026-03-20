@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { FiDatabase, FiZap, FiSearch, FiCheck, FiX, FiChevronUp, FiChevronDown, FiMenu, FiRefreshCw, FiArrowRight, FiTrash2, FiPlus, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
-import api from '../services/api';
+import { FiDatabase, FiZap, FiSearch, FiCheck, FiChevronUp, FiChevronDown, FiRefreshCw, FiTrash2, FiPlus, FiCheckCircle } from 'react-icons/fi';
 
 // ─── Mock Data ─────────────────────────────────────────────────────────────
 const MOCK_EXISTING_INDEXES = [
@@ -93,7 +92,6 @@ export default function IndexOptimizerWidget() {
     const [indexes, setIndexes] = useState([]);
     const [recs, setRecs] = useState([]);
     const [applied, setApplied] = useState(false);
-    const [snapshot, setSnapshot] = useState(null);
     const [pos, setPos] = useState({ x: 0, y: 0 });
     const dragging = useRef(false);
     const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
@@ -122,7 +120,6 @@ export default function IndexOptimizerWidget() {
     const startProcess = async () => {
         setRunning(true);
         setApplied(false);
-        setSnapshot(null);
 
         // Step 0 – Load metrics
         setStep(0);
@@ -164,15 +161,11 @@ export default function IndexOptimizerWidget() {
     };
 
     const handleApprove = () => {
-        if (!applied) {
-            setSnapshot(recs);
-        }
         setApplied(true);
     };
 
     const handleRevert = () => {
         setApplied(false);
-        setSnapshot(null);
     };
 
     const actionColor = { keep: '#2ECC71', add: '#0A66C2', delete: '#E74C3C' };
@@ -205,7 +198,7 @@ export default function IndexOptimizerWidget() {
                         </button>
                     )}
                     {step !== null && !running && (
-                        <button className='idx-reset-btn' onClick={() => { setStep(null); setCrudMetrics(null); setIndexes([]); setRecs([]); setApplied(false); setSnapshot(null); }} title='Сбросить'>
+                        <button className='idx-reset-btn' onClick={() => { setStep(null); setCrudMetrics(null); setIndexes([]); setRecs([]); setApplied(false); }} title='Сбросить'>
                             <FiRefreshCw size={14} />
                         </button>
                     )}

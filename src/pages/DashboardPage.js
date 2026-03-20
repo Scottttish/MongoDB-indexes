@@ -3,7 +3,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { FiSearch, FiPlus, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
-import { getCards, getBasket, addToBasket, removeFromBasket } from '../services/cardsService';
+import { getCards } from '../services/cardsService';
+import { getBasket, addToBasket, removeFromBasket } from '../services/basketService';
 import Navbar from '../components/Navbar';
 import PaymentCard from '../components/PaymentCard';
 import BasketPanel from '../components/BasketPanel';
@@ -59,15 +60,15 @@ export default function DashboardPage() {
         } catch { }
     }, [isAuthenticated]);
 
-    useEffect(() => { 
+    useEffect(() => {
         if (isAuthenticated) {
-            fetchCards(); 
-            fetchBasket(); 
+            fetchCards();
+            fetchBasket();
         }
     }, [isAuthenticated]);
 
-    useEffect(() => { 
-        if (isAuthenticated) fetchCards(); 
+    useEffect(() => {
+        if (isAuthenticated) fetchCards();
     }, [category, status, sort, order, page]);
 
     // Редирект, если не залогинен (теперь ПОСЛЕ хуков)
@@ -109,7 +110,7 @@ export default function DashboardPage() {
 
     return (
         <div className="dashboard">
-            <Navbar 
+            <Navbar
                 onBasketClick={() => setBasketOpen(true)}
                 basketCount={basketItems.length}
                 onProfileClick={() => setProfileOpen(true)}
@@ -153,7 +154,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="cards-grid">
                             {cards.map(card => (
-                                <PaymentCard 
+                                <PaymentCard
                                     key={card._id}
                                     card={card}
                                     onAddToBasket={handleAddToBasket}
@@ -162,12 +163,12 @@ export default function DashboardPage() {
                                 />
                             ))}
                         </div>
-                        
+
                         {pages > 1 && (
                             <div className="pagination">
                                 {[...Array(pages)].map((_, i) => (
-                                    <button 
-                                        key={i+1} 
+                                    <button
+                                        key={i + 1}
                                         className={`page-btn ${page === i + 1 ? 'active' : ''}`}
                                         onClick={() => setPage(i + 1)}
                                     >
@@ -180,16 +181,16 @@ export default function DashboardPage() {
                 )}
             </main>
 
-            <BasketPanel 
-                isOpen={basketOpen} 
-                onClose={() => setBasketOpen(false)} 
+            <BasketPanel
+                isOpen={basketOpen}
+                onClose={() => setBasketOpen(false)}
                 items={basketItems}
                 onRemove={handleRemoveFromBasket}
             />
 
-            <ProfilePanel 
-                isOpen={profileOpen} 
-                onClose={() => setProfileOpen(false)} 
+            <ProfilePanel
+                isOpen={profileOpen}
+                onClose={() => setProfileOpen(false)}
                 user={user}
             />
 

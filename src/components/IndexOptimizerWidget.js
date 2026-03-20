@@ -98,8 +98,9 @@ export default function IndexOptimizerWidget() {
             }]);
         }
 
-        await sleep(300);
-        setStep(2); // Stay on step 2
+        await sleep(500);
+        setMaxStep(3);
+        setStep(3); // Auto-transition to Apply step
         setRunning(false);
     };
 

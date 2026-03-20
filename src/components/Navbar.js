@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiSearch, FiShoppingCart } from 'react-icons/fi';
+import { FiSearch, FiShoppingCart, FiUser, FiDatabase } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ onBasketClick, basketCount, onProfileClick, searchValue, onSearchChange }) {
@@ -8,11 +8,18 @@ export default function Navbar({ onBasketClick, basketCount, onProfileClick, sea
 
     return (
         <nav className="navbar">
+            {/* Brand */}
+            <div className="navbar-brand">
+                <div className="navbar-brand-icon"><FiDatabase size={16} /></div>
+                <span className="navbar-brand-name">MongoDB<span>Indexer</span></span>
+            </div>
+
+            {/* Search */}
             <div className="navbar-search">
-                <FiSearch className="navbar-search-icon" />
+                <FiSearch className="navbar-search-icon" size={15} />
                 <input
                     type="text"
-                    placeholder="Поиск платежей..."
+                    placeholder="Поиск по счетам…"
                     value={searchValue}
                     onChange={e => onSearchChange(e.target.value)}
                 />
@@ -20,22 +27,23 @@ export default function Navbar({ onBasketClick, basketCount, onProfileClick, sea
 
             <div className="navbar-spacer" />
 
+            {/* Actions */}
             <div className="navbar-actions">
-                <div className="navbar-btn-wrap">
-                    <button className="navbar-btn" onClick={onBasketClick} title="Корзина платежей">
-                        <FiShoppingCart />
-                        <span>Корзина</span>
-                    </button>
-                    {basketCount > 0 && (
-                        <span className="badge" style={{ position: 'absolute', top: 6, right: 6, background: '#E74C3C', color: 'white', fontWeight: 700, fontSize: '0.65rem', minWidth: 16, height: 16, borderRadius: 999, padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{basketCount > 99 ? '99+' : basketCount}</span>
-                    )}
-                </div>
-
-                <button className="navbar-btn" onClick={onProfileClick} title="Профиль">
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #0A66C2, #378fe9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'white' }}>
-                        {initials}
+                {/* Basket */}
+                <button className="nav-action-btn" onClick={onBasketClick} title="Корзина">
+                    <div className="nav-action-icon">
+                        <FiShoppingCart size={18} />
+                        {basketCount > 0 && (
+                            <span className="nav-badge">{basketCount > 99 ? '99+' : basketCount}</span>
+                        )}
                     </div>
-                    <span>Профиль</span>
+                    <span>Корзина</span>
+                </button>
+
+                {/* Profile */}
+                <button className="nav-action-btn" onClick={onProfileClick} title="Профиль">
+                    <div className="nav-avatar">{initials}</div>
+                    <span>{user?.nickname || 'Профиль'}</span>
                 </button>
             </div>
         </nav>

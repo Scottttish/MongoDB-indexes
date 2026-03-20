@@ -1,352 +1,311 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { FiDatabase, FiZap, FiSearch, FiCheck, FiChevronUp, FiChevronDown, FiRefreshCw, FiTrash2, FiPlus, FiCheckCircle } from 'react-icons/fi';
+import { FiZap, FiSearch, FiCheck, FiChevronUp, FiChevronDown, FiRefreshCw, FiTrash2, FiPlus, FiCheckCircle, FiAlertTriangle } from 'react-icons/fi';
+import api from '../services/api';
 
-// ─── Mock Data ─────────────────────────────────────────────────────────────
-const MOCK_EXISTING_INDEXES = [
-    { name: '_id_', keys: [{ field: '_id', dir: 1 }], collection: 'paymentcards', usage: 'high' },
-    { name: 'userId_1_createdAt_-1', keys: [{ field: 'userId', dir: 1 }, { field: 'createdAt', dir: -1 }], collection: 'paymentcards', usage: 'high' },
-    { name: 'userId_1_category_1', keys: [{ field: 'userId', dir: 1 }, { field: 'category', dir: 1 }], collection: 'paymentcards', usage: 'medium' },
-    { name: 'userId_1_status_1', keys: [{ field: 'userId', dir: 1 }, { field: 'status', dir: 1 }], collection: 'paymentcards', usage: 'medium' },
-    { name: 'userId_1_amount_-1', keys: [{ field: 'userId', dir: 1 }, { field: 'amount', dir: -1 }], collection: 'paymentcards', usage: 'low' },
-    { name: 'title_text_provider_text', keys: [{ field: 'title', dir: 'text' }, { field: 'provider', dir: 'text' }], collection: 'paymentcards', usage: 'medium' },
-    { name: 'email_1', keys: [{ field: 'email', dir: 1 }], collection: 'users', usage: 'high' },
-];
+const STEPS = ['Нагрузка', 'Индексы', 'Анализ', 'Применение'];
+const A_COLOR = { keep: '#1dd1a1', add: '#3dc6ff', delete: '#ff6b81' };
+const A_LABEL = { keep: 'Оставить', add: 'Добавить', delete: 'Удалить' };
+const IMP_CLR = { critical: '#ff4757', high: '#1dd1a1', medium: '#ffa502', low: '#747d8c' };
+const IMP_LBL = { critical: 'Критично', high: 'Важно', medium: 'Умеренно', low: 'Низко' };
 
-const AI_RECOMMENDATIONS = [
-    {
-        action: 'keep',
-        index: '_id_',
-        reason: 'Системный индекс MongoDB — обязателен. Обеспечивает O(log n) доступ по первичному ключу. Удаление приведёт к краху базы.',
-        impact: 'critical',
-    },
-    {
-        action: 'keep',
-        index: 'userId_1_createdAt_-1',
-        reason: 'Ключевой составной индекс. Используется в основном запросе (получение карточек пользователя, сортировка по дате). Покрывает 80% запросов. Без него каждый запрос вызовет COLLSCAN.',
-        impact: 'high',
-    },
-    {
-        action: 'add',
-        index: 'userId_1_category_1_status_1',
-        keys: [{ field: 'userId', dir: 1 }, { field: 'category', dir: 1 }, { field: 'status', dir: 1 }],
-        reason: 'Текущие индексы по категории и статусу хранятся отдельно. При одновременной фильтрации (userId + category + status) MongoDB делает пересечение двух индексов. Один составной индекс ускорит такие запросы на 60-70%, не создавая лишних записей в OPLOG.',
-        impact: 'high',
-    },
-    {
-        action: 'delete',
-        index: 'userId_1_category_1',
-        reason: 'Будет заменён новым составным индексом userId_1_category_1_status_1. Дублирование индексов замедляет INSERT/UPDATE, так как MongoDB обновляет оба при записи. Удаление сократит overhead при CRUD-операциях на ~15%.',
-        impact: 'medium',
-    },
-    {
-        action: 'delete',
-        index: 'userId_1_status_1',
-        reason: 'Аналогично — будет перекрыт новым составным индексом. Раздельный индекс по статусу имеет низкую селективность (только 4 значения). Составной индекс эффективнее.',
-        impact: 'medium',
-    },
-    {
-        action: 'keep',
-        index: 'userId_1_amount_-1',
-        reason: 'Индекс по сумме. Нагрузка средняя — используется при сортировке. Влияние на запись минимально (~2% overhead). Рекомендуется оставить для поиска по диапазону сумм.',
-        impact: 'low',
-    },
-    {
-        action: 'keep',
-        index: 'title_text_provider_text',
-        reason: 'Полнотекстовый индекс для поиска. Покрывает текстовый поиск по title и provider. Без него поиск потребует COLLSCAN. Atlas Search заменит его только при переходе на Enterprise план.',
-        impact: 'medium',
-    },
-    {
-        action: 'keep',
-        index: 'email_1',
-        reason: 'Уникальный индекс по email пользователей. Используется при каждом логине (findOne by email). Без него аутентификация будет O(n). Обязателен к сохранению.',
-        impact: 'high',
-    },
-];
-
-// ─── Helpers ───────────────────────────────────────────────────────────────
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function randomBetween(a, b) { return (Math.random() * (b - a) + a).toFixed(1); }
-
-function IndexKey({ keys }) {
-    return (
-        <div className='idx-keys'>
-            {keys.map((k, i) => (
-                <span key={i} className='idx-key'>
-                    {k.field} <span className='idx-dir'>{k.dir === 1 ? '↑' : k.dir === -1 ? '↓' : k.dir}</span>
-                </span>
-            ))}
-        </div>
-    );
+function Badge({ color, children }) {
+    return <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: color + '22', color }}>{children}</span>;
 }
 
-const STEP_LABELS = ['Нагрузка', 'Индексы', 'AI Анализ', 'Тестирование'];
+function KeyTag({ field, dir }) {
+    return <span style={{ fontSize: '0.62rem', padding: '1px 6px', background: 'rgba(61,198,255,0.12)', color: '#3dc6ff', borderRadius: 4, fontFamily: 'monospace' }}>{field} <span style={{ opacity: 0.6 }}>{dir === 1 || dir === 'asc' ? '↑' : dir === -1 || dir === 'desc' ? '↓' : dir}</span></span>;
+}
 
-// ─── Main Widget Component ─────────────────────────────────────────────────
 export default function IndexOptimizerWidget() {
     const [collapsed, setCollapsed] = useState(false);
-    const [step, setStep] = useState(null); // null | 0 | 1 | 2 | 3
+    const [step, setStep] = useState(null);
     const [running, setRunning] = useState(false);
-    const [crudMetrics, setCrudMetrics] = useState(null);
+    const [metrics, setMetrics] = useState(null);
     const [indexes, setIndexes] = useState([]);
     const [recs, setRecs] = useState([]);
+    const [rawStats, setRawStats] = useState({});
     const [applied, setApplied] = useState(false);
+    const [opLog, setOpLog] = useState([]);
+    const [opStatus, setOpStatus] = useState({});
     const [pos, setPos] = useState({ x: 0, y: 0 });
     const dragging = useRef(false);
-    const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
-    const widgetRef = useRef(null);
+    const drag0 = useRef({});
 
     const onMouseDown = useCallback((e) => {
-        if (e.target.closest('button') || e.target.closest('input')) return;
+        if (e.target.closest('button')) return;
         dragging.current = true;
-        dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
+        drag0.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
         document.body.style.userSelect = 'none';
     }, [pos]);
 
     useEffect(() => {
-        const onMove = (e) => {
-            if (!dragging.current) return;
-            const dx = e.clientX - dragStart.current.mx;
-            const dy = e.clientY - dragStart.current.my;
-            setPos({ x: dragStart.current.px + dx, y: dragStart.current.py + dy });
-        };
-        const onUp = () => { dragging.current = false; document.body.style.userSelect = ''; };
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        const mv = e => { if (!dragging.current) return; setPos({ x: drag0.current.px + e.clientX - drag0.current.mx, y: drag0.current.py + e.clientY - drag0.current.my }); };
+        const up = () => { dragging.current = false; document.body.style.userSelect = ''; };
+        window.addEventListener('mousemove', mv);
+        window.addEventListener('mouseup', up);
+        return () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
     }, []);
 
-    const startProcess = async () => {
-        setRunning(true);
-        setApplied(false);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-        // Step 0 – Load metrics
-        setStep(0);
-        setCrudMetrics(null);
-        await sleep(600);
-        const metrics = {
-            create: +randomBetween(18, 45),
-            read: +randomBetween(4, 12),
-            update: +randomBetween(14, 38),
-            delete: +randomBetween(9, 25),
-            totalQueries: Math.floor(Math.random() * 500) + 100,
-            load: +randomBetween(15, 80),
-        };
-        await sleep(1200);
-        setCrudMetrics(metrics);
+    const run = async () => {
+        setRunning(true); setApplied(false); setOpLog([]); setOpStatus({});
 
-        // Step 1 – Indexes
-        await sleep(800);
-        setStep(1);
-        setIndexes([]);
-        for (let i = 0; i < MOCK_EXISTING_INDEXES.length; i++) {
-            await sleep(150);
-            setIndexes(prev => [...prev, MOCK_EXISTING_INDEXES[i]]);
-        }
+        // ─ Step 0: Real benchmark ─────────────────────────────────────────
+        setStep(0); setMetrics(null);
+        try {
+            const { data } = await api.get('/api/system/benchmark');
+            setMetrics(data);
+        } catch { setMetrics({ create: '?', read: '?', update: '?', delete: '?', error: true }); }
 
-        // Step 2 – AI recommendations
-        await sleep(600);
-        setStep(2);
-        setRecs([]);
-        for (let i = 0; i < AI_RECOMMENDATIONS.length; i++) {
-            await sleep(300);
-            setRecs(prev => [...prev, AI_RECOMMENDATIONS[i]]);
-        }
-
-        // Step 3 – Testing
         await sleep(500);
-        setStep(3);
-        setRunning(false);
+
+        // ─ Step 1: Real indexes ───────────────────────────────────────────
+        setStep(1); setIndexes([]);
+        try {
+            const { data } = await api.get('/api/system/indexes');
+            for (let i = 0; i < data.length; i++) {
+                await sleep(80);
+                setIndexes(p => [...p, data[i]]);
+            }
+        } catch { setIndexes([{ name: 'Ошибка загрузки', key: {}, collection: '—' }]); }
+
+        await sleep(400);
+
+        // ─ Step 2: Real analysis ($indexStats) ───────────────────────────
+        setStep(2); setRecs([]);
+        try {
+            const { data } = await api.get('/api/system/analyze');
+            setRawStats(data.rawStats || {});
+            for (let i = 0; i < data.recommendations.length; i++) {
+                await sleep(120);
+                setRecs(p => [...p, data.recommendations[i]]);
+            }
+        } catch (e) { setRecs([{ action: 'keep', index: 'Ошибка анализа', collection: '—', reason: e.message, impact: 'low', keys: [] }]); }
+
+        await sleep(400);
+        setStep(3); setRunning(false);
     };
 
-    const handleApprove = () => {
+    const applyChanges = async () => {
+        const toApply = recs.filter(r => r.action === 'add' || r.action === 'delete');
+        if (!toApply.length) return;
+        for (const rec of toApply) {
+            setOpStatus(p => ({ ...p, [rec.index]: 'loading' }));
+            await sleep(200);
+            try {
+                if (rec.action === 'delete') {
+                    await api.delete(`/api/system/indexes/${rec.collection}/${encodeURIComponent(rec.index)}`);
+                } else {
+                    const keys = rec.mongoKeys || {};
+                    if (!Object.keys(keys).length) (rec.keys || []).forEach(k => { keys[k.field] = k.dir === 'asc' || k.dir === 1 ? 1 : k.dir === 'text' ? 'text' : -1; });
+                    await api.post('/api/system/indexes', { collection: rec.collection, keys, options: rec.options || {} });
+                }
+                setOpStatus(p => ({ ...p, [rec.index]: 'done' }));
+                setOpLog(p => [...p, { name: rec.index, action: rec.action, ok: true }]);
+            } catch (err) {
+                setOpStatus(p => ({ ...p, [rec.index]: 'error' }));
+                setOpLog(p => [...p, { name: rec.index, action: rec.action, ok: false, msg: err.response?.data?.message || err.message }]);
+            }
+        }
         setApplied(true);
     };
 
-    const handleRevert = () => {
+    const revert = async () => {
+        const toRevert = recs.filter(r => r.action !== 'keep' && opStatus[r.index] === 'done');
+        for (const rec of toRevert) {
+            setOpStatus(p => ({ ...p, [rec.index]: 'loading' }));
+            await sleep(200);
+            try {
+                if (rec.action === 'add') {
+                    await api.delete(`/api/system/indexes/${rec.collection}/${encodeURIComponent(rec.index)}`);
+                } else if (rec.action === 'delete') {
+                    const keys = rec.mongoKeys || {};
+                    if (!Object.keys(keys).length) (rec.keys || []).forEach(k => { keys[k.field] = k.dir === 'asc' || k.dir === 1 ? 1 : k.dir === 'text' ? 'text' : -1; });
+                    await api.post('/api/system/indexes', { collection: rec.collection, keys });
+                }
+                setOpStatus(p => ({ ...p, [rec.index]: 'reverted' }));
+                setOpLog(p => [...p, { name: rec.index, action: 'revert', ok: true }]);
+            } catch (err) {
+                setOpStatus(p => ({ ...p, [rec.index]: 'error' }));
+            }
+        }
         setApplied(false);
     };
 
-    const actionColor = { keep: '#2ECC71', add: '#0A66C2', delete: '#E74C3C' };
-    const actionLabel = { keep: 'Оставить', add: 'Добавить', delete: 'Удалить' };
-    const actionIcon = { keep: <FiCheck />, add: <FiPlus />, delete: <FiTrash2 /> };
+    const reset = () => { setStep(null); setMetrics(null); setIndexes([]); setRecs([]); setApplied(false); setOpLog([]); setOpStatus({}); setRawStats({}); };
+
+    const colStats = Object.entries(rawStats);
 
     return (
-        <div
-            ref={widgetRef}
-            className='idx-widget'
-            style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
-        >
-            {/* Header bar */}
-            <div className='idx-header' onMouseDown={onMouseDown}>
-                <div className='idx-header-left'>
-                    <div className='idx-logo'><FiDatabase size={16} /></div>
-                    <span className='idx-title'>Index Optimizer</span>
+        <div className='wo-widget' style={{ transform: `translate(${pos.x}px,${pos.y}px)` }}>
+            {/* ── Header ── */}
+            <div className='wo-header' onMouseDown={onMouseDown}>
+                <div className='wo-hdr-left'>
+                    <span className='wo-title'>Оптимизация индексов</span>
                     {step !== null && (
-                        <div className='idx-steps-mini'>
-                            {STEP_LABELS.map((l, i) => (
-                                <div key={i} className={`idx-dot ${i === step ? 'active' : i < step ? 'done' : ''}`} title={l} />
-                            ))}
+                        <div style={{ display: 'flex', gap: 4 }}>
+                            {STEPS.map((_, i) => <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i < step ? '#1dd1a1' : i === step ? '#3dc6ff' : 'rgba(255,255,255,0.15)', display: 'inline-block', boxShadow: i === step ? '0 0 6px #3dc6ff' : '' }} />)}
                         </div>
                     )}
                 </div>
-                <div className='idx-header-right'>
-                    {step === null && (
-                        <button className='idx-start-btn' onClick={startProcess} disabled={running}>
-                            <FiZap size={14} /> Начать
-                        </button>
-                    )}
-                    {step !== null && !running && (
-                        <button className='idx-reset-btn' onClick={() => { setStep(null); setCrudMetrics(null); setIndexes([]); setRecs([]); setApplied(false); }} title='Сбросить'>
-                            <FiRefreshCw size={14} />
-                        </button>
-                    )}
-                    <button className='idx-collapse-btn' onClick={() => setCollapsed(p => !p)}>
-                        {collapsed ? <FiChevronDown size={16} /> : <FiChevronUp size={16} />}
-                    </button>
+                <div style={{ display: 'flex', gap: 5 }}>
+                    {step === null && <button className='wo-start' onClick={run} disabled={running}><FiZap size={11} /> Запустить</button>}
+                    {step !== null && !running && <button className='wo-icon-btn' onClick={reset}><FiRefreshCw size={12} /></button>}
+                    <button className='wo-icon-btn' onClick={() => setCollapsed(p => !p)}>{collapsed ? <FiChevronDown size={13} /> : <FiChevronUp size={13} />}</button>
                 </div>
             </div>
 
-            {/* Body */}
+            {/* ── Step nav ── */}
+            {!collapsed && step !== null && (
+                <div className='wo-steps'>
+                    {STEPS.map((label, i) => (
+                        <button key={i} className={`wo-step-btn ${i === step ? 'active' : i < step ? 'done' : ''}`}
+                            onClick={() => !running && i <= step && setStep(i)}>
+                            {i < step ? <FiCheck size={10} /> : <span className='wo-step-num'>{i + 1}</span>}
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {!collapsed && (
-                <div className='idx-body'>
+                <div className='wo-body'>
+                    {/* Idle */}
                     {step === null && (
-                        <div className='idx-idle'>
-                            <FiDatabase size={36} className='idx-idle-icon' />
-                            <p>Нажмите <strong>Начать</strong>, чтобы запустить анализ индексов MongoDB. Процесс независим от данных сайта.</p>
+                        <div className='wo-idle'>
+                            <p>Нажмите <strong>Запустить</strong> для реального анализа индексов вашей MongoDB.</p>
+                            <ul className='wo-idle-list'>
+                                <li>📊 Реальный CRUD-бенчмарк (запросы к БД)</li>
+                                <li>📋 Список индексов из MongoDB</li>
+                                <li>🔍 Анализ через <code>$indexStats</code> — реальное число обращений</li>
+                                <li>⚡ Применение/откат изменений</li>
+                            </ul>
                         </div>
                     )}
 
-                    {/* Step tabs */}
-                    {step !== null && (
-                        <div className='idx-tabs'>
-                            {STEP_LABELS.map((l, i) => (
-                                <div key={i} className={`idx-tab ${i === step ? 'active' : i < step ? 'done' : ''}`}>
-                                    {i < step ? <FiCheck size={12} /> : <span>{i + 1}</span>}
-                                    {l}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Step 0 – Load */}
+                    {/* Step 0 – Нагрузка */}
                     {step === 0 && (
-                        <div className='idx-section'>
-                            <h4 className='idx-section-title'><FiZap /> Нагрузочный тест (CRUD)</h4>
-                            {!crudMetrics ? (
-                                <div className='idx-loading-bars'>
+                        <div className='wo-section'>
+                            <div className='wo-sec-title'><FiZap size={12} /> Реальный бенчмарк CRUD</div>
+                            {!metrics ? (
+                                <div className='wo-bars'>
                                     {['CREATE', 'READ', 'UPDATE', 'DELETE'].map(op => (
-                                        <div key={op} className='idx-bar-row'>
-                                            <span className='idx-op-label'>{op}</span>
-                                            <div className='idx-bar-track'><div className='idx-bar-fill animating' /></div>
-                                            <span className='idx-ms-val'>…</span>
+                                        <div key={op} className='wo-bar-row'>
+                                            <span className='wo-op'>{op}</span>
+                                            <div className='wo-track'><div className='wo-fill pulse' /></div>
+                                            <span className='wo-ms'>…</span>
                                         </div>
                                     ))}
+                                    <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: 8 }}>Выполняется реальный запрос к MongoDB…</p>
                                 </div>
                             ) : (
-                                <div className='idx-metrics'>
-                                    <div className='idx-metric-row'>
-                                        <span>Загрузка сервера</span>
-                                        <div className='idx-load-bar'>
-                                            <div className='idx-load-fill' style={{ width: `${crudMetrics.load}%`, background: crudMetrics.load > 70 ? '#E74C3C' : crudMetrics.load > 40 ? '#F5A623' : '#2ECC71' }} />
-                                        </div>
-                                        <span className='idx-load-pct'>{crudMetrics.load}%</span>
-                                    </div>
-                                    {[['CREATE', crudMetrics.create], ['READ', crudMetrics.read], ['UPDATE', crudMetrics.update], ['DELETE', crudMetrics.delete]].map(([op, ms]) => (
-                                        <div className='idx-bar-row' key={op}>
-                                            <span className='idx-op-label'>{op}</span>
-                                            <div className='idx-bar-track'>
-                                                <div className='idx-bar-fill' style={{ width: `${Math.min(ms * 2, 100)}%`, background: ms > 30 ? '#E74C3C' : ms > 15 ? '#F5A623' : '#2ECC71' }} />
-                                            </div>
-                                            <span className='idx-ms-val'>{ms} мс</span>
+                                <div className='wo-bars'>
+                                    {[['CREATE', metrics.create], ['READ', metrics.read], ['UPDATE', metrics.update], ['DELETE', metrics.delete]].map(([op, ms]) => (
+                                        <div key={op} className='wo-bar-row'>
+                                            <span className='wo-op'>{op}</span>
+                                            <div className='wo-track'><div className='wo-fill' style={{ width: `${Math.min(ms * 1.5, 100)}%`, background: ms > 100 ? '#ff4757' : ms > 50 ? '#ffa502' : '#1dd1a1' }} /></div>
+                                            <span className='wo-ms'>{typeof ms === 'number' ? `${ms} мс` : ms}</span>
                                         </div>
                                     ))}
-                                    <div className='idx-stat-note'>Всего запросов за тест: <strong>{crudMetrics.totalQueries}</strong></div>
+                                    <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>
+                                        <span>Карточек: <strong style={{ color: '#e8eaf0' }}>{metrics.totalCards?.toLocaleString()}</strong></span>
+                                        <span>Пользов.: <strong style={{ color: '#e8eaf0' }}>{metrics.totalUsers?.toLocaleString()}</strong></span>
+                                    </div>
+                                    {metrics.error && <p style={{ fontSize: '0.72rem', color: '#ffa502', marginTop: 4 }}>⚠ Бенчмарк выполнен с ошибкой</p>}
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* Step 1 – Indexes */}
+                    {/* Step 1 – Индексы */}
                     {step === 1 && (
-                        <div className='idx-section'>
-                            <h4 className='idx-section-title'><FiSearch /> Текущие индексы</h4>
-                            <div className='idx-list'>
-                                {indexes.map((idx, i) => (
-                                    <div key={i} className='idx-row fade-in'>
-                                        <div className='idx-row-left'>
-                                            <span className='idx-name'>{idx.name}</span>
-                                            <span className='idx-collection'>{idx.collection}</span>
+                        <div className='wo-section'>
+                            <div className='wo-sec-title'><FiSearch size={12} /> Индексы MongoDB ({indexes.length})</div>
+                            <div className='wo-list'>
+                                {indexes.map((idx, i) => {
+                                    const keys = idx.key ? Object.entries(idx.key) : [];
+                                    return (
+                                        <div key={i} className='wo-idx fade-in'>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                <code style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'monospace' }}>{idx.name}</code>
+                                                <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>{idx.collection}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                {keys.map(([f, d], j) => <KeyTag key={j} field={f} dir={d} />)}
+                                            </div>
                                         </div>
-                                        <IndexKey keys={idx.keys} />
-                                        <span className={`idx-usage ${idx.usage}`}>{idx.usage === 'high' ? 'Высокая' : idx.usage === 'medium' ? 'Средняя' : 'Низкая'}</span>
-                                    </div>
-                                ))}
-                                {running && <div className='idx-loading-dot'>Загрузка индексов…</div>}
+                                    );
+                                })}
+                                {running && <div className='wo-loading-txt'>Загрузка индексов из MongoDB…</div>}
                             </div>
                         </div>
                     )}
 
-                    {/* Step 2 – AI */}
+                    {/* Step 2 – Анализ */}
                     {step === 2 && (
-                        <div className='idx-section'>
-                            <h4 className='idx-section-title'><span style={{ fontSize: 16 }}>🤖</span> AI Рекомендации</h4>
-                            <div className='idx-list'>
-                                {recs.map((r, i) => (
-                                    <div key={i} className={`idx-rec fade-in action-${r.action}`}>
-                                        <div className='idx-rec-header'>
-                                            <span className='idx-rec-action' style={{ color: actionColor[r.action] }}>
-                                                {actionIcon[r.action]} {actionLabel[r.action]}
-                                            </span>
-                                            <code className='idx-rec-name'>{r.index}</code>
-                                            <span className={`idx-impact ${r.impact}`}>{r.impact}</span>
+                        <div className='wo-section'>
+                            <div className='wo-sec-title'><FiSearch size={12} /> Анализ через $indexStats</div>
+                            {colStats.length > 0 && (
+                                <div className='wo-stats-row'>
+                                    {colStats.map(([col, s]) => !s.error && (
+                                        <div key={col} className='wo-stat-chip'>
+                                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.6rem' }}>{col}</span>
+                                            <strong style={{ color: '#e8eaf0' }}>{s.docCount?.toLocaleString()}</strong> doc
                                         </div>
-                                        {r.keys && <IndexKey keys={r.keys} />}
-                                        <p className='idx-rec-reason'>{r.reason}</p>
-                                    </div>
-                                ))}
-                                {running && <div className='idx-loading-dot'>AI анализирует индексы…</div>}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Step 3 – Testing / Approve */}
-                    {step === 3 && (
-                        <div className='idx-section'>
-                            <h4 className='idx-section-title'><FiCheck /> Тестирование и применение</h4>
-                            <div className='idx-apply-summary'>
-                                <div className='idx-apply-stat add'><FiPlus /><span>{recs.filter(r => r.action === 'add').length} добавить</span></div>
-                                <div className='idx-apply-stat delete'><FiTrash2 /><span>{recs.filter(r => r.action === 'delete').length} удалить</span></div>
-                                <div className='idx-apply-stat keep'><FiCheck /><span>{recs.filter(r => r.action === 'keep').length} оставить</span></div>
-                            </div>
-
-                            {applied && (
-                                <div className='idx-apply-notice success'>
-                                    <FiCheckCircle /> Изменения применены! Индексы оптимизированы.
+                                    ))}
                                 </div>
                             )}
-
-                            {!applied && (
-                                <p className='idx-test-hint'>Нажмите <strong>Одобрить</strong>, чтобы применить изменения индексов. Кнопка <strong>Откатить</strong> всегда доступна для возврата к исходному состоянию.</p>
-                            )}
-
-                            <div className='idx-actions-row'>
-                                <button className={`idx-btn-approve ${applied ? 'applied' : ''}`} onClick={handleApprove}>
-                                    <FiCheckCircle size={16} /> {applied ? 'Применено' : 'Одобрить'}
-                                </button>
-                                <button className='idx-btn-revert' onClick={handleRevert}>
-                                    <FiRefreshCw size={16} /> Откатить
-                                </button>
+                            <div className='wo-list'>
+                                {recs.map((r, i) => {
+                                    const st = opStatus[r.index];
+                                    return (
+                                        <div key={i} className={`wo-rec fade-in wo-rec-${r.action}`}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                <Badge color={A_COLOR[r.action]}>{A_LABEL[r.action]}</Badge>
+                                                <code style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)', fontFamily: 'monospace', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.index}</code>
+                                                <Badge color={IMP_CLR[r.impact || 'low']}>{IMP_LBL[r.impact || 'low']}</Badge>
+                                                {r.ops !== undefined && <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)' }}>{r.ops.toLocaleString()} ops</span>}
+                                                {st === 'done' && <FiCheckCircle size={11} style={{ color: '#1dd1a1' }} />}
+                                                {st === 'error' && <FiAlertTriangle size={11} style={{ color: '#ff4757' }} />}
+                                                {st === 'reverted' && <FiRefreshCw size={11} style={{ color: '#ffa502' }} />}
+                                            </div>
+                                            {r.keys?.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{r.keys.map((k, j) => <KeyTag key={j} field={k.field} dir={k.dir} />)}</div>}
+                                            <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, margin: 0 }}>{r.reason}</p>
+                                        </div>
+                                    );
+                                })}
+                                {running && <div className='wo-loading-txt'>Запрашиваем $indexStats из MongoDB…</div>}
                             </div>
+                        </div>
+                    )}
 
-                            {applied && (
-                                <div className='idx-applied-list'>
-                                    <p className='idx-applied-label'>Применённые изменения:</p>
-                                    {recs.filter(r => r.action !== 'keep').map((r, i) => (
-                                        <div key={i} className={`idx-applied-item ${r.action}`}>
-                                            <span style={{ color: actionColor[r.action] }}>{actionIcon[r.action]}</span>
-                                            <code>{r.index}</code>
+                    {/* Step 3 – Применение */}
+                    {step === 3 && (
+                        <div className='wo-section'>
+                            <div className='wo-sec-title'><FiCheck size={12} /> Применение изменений</div>
+                            <div className='wo-chips'>
+                                <span className='wo-chip wo-chip-add'><FiPlus size={10} /> {recs.filter(r => r.action === 'add').length} добавить</span>
+                                <span className='wo-chip wo-chip-del'><FiTrash2 size={10} /> {recs.filter(r => r.action === 'delete').length} удалить</span>
+                                <span className='wo-chip wo-chip-keep'><FiCheck size={10} /> {recs.filter(r => r.action === 'keep').length} оставить</span>
+                            </div>
+                            {!applied && <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5, marginBottom: 10 }}>Нажмите <strong style={{ color: '#e8eaf0' }}>Применить</strong> — выполнятся реальные создание/удаление индексов в MongoDB.</p>}
+                            {applied && <div className='wo-notice-ok'><FiCheckCircle size={13} /> Изменения применены в MongoDB</div>}
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                                <button className={`wo-btn-apply ${applied ? 'applied' : ''}`} onClick={applyChanges} disabled={running || !recs.some(r => r.action !== 'keep')}>
+                                    <FiCheckCircle size={13} /> {applied ? 'Применено' : 'Применить'}
+                                </button>
+                                <button className='wo-btn-revert' onClick={revert}><FiRefreshCw size={13} /> Откатить</button>
+                            </div>
+                            {opLog.length > 0 && (
+                                <div className='wo-log'>
+                                    <p style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Лог операций</p>
+                                    {opLog.map((l, i) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', fontSize: '0.72rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                            {l.ok ? <FiCheckCircle size={11} style={{ color: '#1dd1a1' }} /> : <FiAlertTriangle size={11} style={{ color: '#ff4757' }} />}
+                                            <code style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</code>
+                                            <span style={{ color: 'rgba(255,255,255,0.3)' }}>{l.action}</span>
+                                            {l.msg && <span style={{ color: '#ff4757', fontSize: '0.65rem' }}>{l.msg}</span>}
                                         </div>
                                     ))}
                                 </div>

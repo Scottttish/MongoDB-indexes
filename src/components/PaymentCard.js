@@ -25,6 +25,23 @@ function formatDate(date) {
     return new Date(date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+const TITLE_PREFIXES = ['Счет — ', 'Счёт — ', 'Счет — ', 'Оплата — '];
+const CATEGORY_TITLES = {
+    electricity: 'Электроэнергия', gas: 'Оплата газа', water: 'Водоснабжение',
+    internet: 'Интернет', phone: 'Телефон', heating: 'Отопление',
+    trash: 'Вывоз мусора', cable: 'Кабельное ТВ', security: 'Охрана', other: 'Прочее',
+};
+
+function getDisplayTitle(card) {
+    let t = card.title || '';
+    // Strip technical prefixes and english category names
+    TITLE_PREFIXES.forEach(p => { if (t.startsWith(p)) t = t.slice(p.length); });
+    const lower = t.toLowerCase().trim();
+    if (CATEGORY_TITLES[lower]) return CATEGORY_TITLES[lower];
+    if (!t || t === card.category) return CATEGORY_TITLES[card.category] || t;
+    return t;
+}
+
 export default function PaymentCard({ card, onAddToBasket, isInBasket, loading }) {
     const cat = CATEGORY_CONFIG[card.category] || CATEGORY_CONFIG.other;
 
@@ -32,9 +49,9 @@ export default function PaymentCard({ card, onAddToBasket, isInBasket, loading }
         <div className="payment-card" style={{ '--card-accent': cat.color, '--icon-bg': cat.bg }}>
             <div className="card-header">
                 <div className="card-icon" style={{ color: cat.color }}>{cat.icon}</div>
-                <div className="card-info">
-                    <div className="card-title">{card.title}</div>
-                    <div className="card-provider">{card.provider}</div>
+                <div className="card-header-main">
+                    <h3 className="card-title">{getDisplayTitle(card)}</h3>
+                    <p className="card-provider">{card.provider}</p>
                 </div>
                 <div className="card-category-badge" style={{ '--badge-bg': cat.bg, '--badge-color': cat.color }}>
                     {cat.label}

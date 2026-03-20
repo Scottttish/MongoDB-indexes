@@ -19,6 +19,7 @@ function KeyTag({ field, dir }) {
 export default function IndexOptimizerWidget() {
     const [collapsed, setCollapsed] = useState(false);
     const [step, setStep] = useState(null);
+    const [maxStep, setMaxStep] = useState(-1);
     const [running, setRunning] = useState(false);
     const [metrics, setMetrics] = useState(null);
     const [indexes, setIndexes] = useState([]);
@@ -49,7 +50,7 @@ export default function IndexOptimizerWidget() {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
     const run = async () => {
-        setRunning(true); setApplied(false); setOpLog([]); setOpStatus({});
+        setRunning(true); setApplied(false); setOpLog([]); setOpStatus({}); setMaxStep(0);
 
         // ─ Step 0: Real benchmark ─────────────────────────────────────────
         setStep(0); setMetrics(null);
@@ -59,32 +60,35 @@ export default function IndexOptimizerWidget() {
         } catch { setMetrics({ create: '?', read: '?', update: '?', delete: '?', error: true }); }
 
         await sleep(500);
+        setMaxStep(1);
 
         // ─ Step 1: Real indexes ───────────────────────────────────────────
         setStep(1); setIndexes([]);
         try {
             const { data } = await api.get('/api/system/indexes');
             for (let i = 0; i < data.length; i++) {
-                await sleep(80);
+                await sleep(50);
                 setIndexes(p => [...p, data[i]]);
             }
-        } catch { setIndexes([{ name: 'Ошибка загрузки', key: {}, collection: '—' }]); }
+        } catch { setIndexes([]); }
 
         await sleep(400);
+        setMaxStep(2);
 
         // ─ Step 2: Real analysis ($indexStats) ───────────────────────────
         setStep(2); setRecs([]);
         try {
             const { data } = await api.get('/api/system/analyze');
             setRawStats(data.rawStats || {});
-            for (let i = 0; i < data.recommendations.length; i++) {
-                await sleep(120);
-                setRecs(p => [...p, data.recommendations[i]]);
+            const recommendations = data.recommendations || [];
+            for (let i = 0; i < recommendations.length; i++) {
+                await sleep(100);
+                setRecs(p => [...p, recommendations[i]]);
             }
-        } catch (e) { setRecs([{ action: 'keep', index: 'Ошибка анализа', collection: '—', reason: e.message, impact: 'low', keys: [] }]); }
+        } catch (e) { setRecs([]); }
 
         await sleep(400);
-        setStep(3); setRunning(false);
+        setStep(3); setMaxStep(3); setRunning(false);
     };
 
     const applyChanges = async () => {
@@ -133,7 +137,7 @@ export default function IndexOptimizerWidget() {
         setApplied(false);
     };
 
-    const reset = () => { setStep(null); setMetrics(null); setIndexes([]); setRecs([]); setApplied(false); setOpLog([]); setOpStatus({}); setRawStats({}); };
+    const reset = () => { setStep(null); setMaxStep(-1); setMetrics(null); setIndexes([]); setRecs([]); setApplied(false); setOpLog([]); setOpStatus({}); setRawStats({}); };
 
     const colStats = Object.entries(rawStats);
 
@@ -160,9 +164,9 @@ export default function IndexOptimizerWidget() {
             {!collapsed && step !== null && (
                 <div className='wo-steps'>
                     {STEPS.map((label, i) => (
-                        <button key={i} className={`wo-step-btn ${i === step ? 'active' : i < step ? 'done' : ''}`}
-                            onClick={() => !running && i <= step && setStep(i)}>
-                            {i < step ? <FiCheck size={10} /> : <span className='wo-step-num'>{i + 1}</span>}
+                        <button key={i} className={`wo-step-btn ${i === step ? 'active' : i <= maxStep ? 'done' : ''}`}
+                            onClick={() => !running && i <= maxStep && setStep(i)}>
+                            {i < maxStep ? <FiCheck size={10} /> : <span className='wo-step-num'>{i + 1}</span>}
                             {label}
                         </button>
                     ))}
@@ -175,12 +179,6 @@ export default function IndexOptimizerWidget() {
                     {step === null && (
                         <div className='wo-idle'>
                             <p>Нажмите <strong>Запустить</strong> для реального анализа индексов вашей MongoDB.</p>
-                            <ul className='wo-idle-list'>
-                                <li>📊 Реальный CRUD-бенчмарк (запросы к БД)</li>
-                                <li>📋 Список индексов из MongoDB</li>
-                                <li>🔍 Анализ через <code>$indexStats</code> — реальное число обращений</li>
-                                <li>⚡ Применение/откат изменений</li>
-                            </ul>
                         </div>
                     )}
 

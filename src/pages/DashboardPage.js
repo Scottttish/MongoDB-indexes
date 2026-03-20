@@ -121,39 +121,7 @@ export default function DashboardPage() {
             />
 
             <main className="dashboard-content">
-                <div className="filter-bar">
-                    <div className="filter-group">
-                        <label>Категория</label>
-                        <select value={category} onChange={e => { setCategory(e.target.value); setPage(1); }}>
-                            <option value="all">Все</option>
-                            <option value="electricity">Электричество</option>
-                            <option value="water">Вода</option>
-                            <option value="internet">Интернет</option>
-                            <option value="gas">Газ</option>
-                        </select>
-                    </div>
-
-                    <div className="filter-group">
-                        <label>Статус</label>
-                        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
-                            <option value="all">Любой</option>
-                            <option value="pending">Ожидает</option>
-                            <option value="paid">Оплачено</option>
-                            <option value="overdue">Просрочено</option>
-                        </select>
-                    </div>
-
-                    <div className="navbar-spacer" />
-                </div>
-
-                <div className="filter-bar">
-                    <button className={`sort-btn ${sort === 'amount' ? 'active' : ''}`} onClick={() => handleSort('amount')}>
-                        По сумме {sort === 'amount' && (order === 'asc' ? <FiChevronUp /> : <FiChevronDown />)}
-                    </button>
-                    <button className={`sort-btn ${sort === 'createdAt' ? 'active' : ''}`} onClick={() => handleSort('createdAt')}>
-                        По дате {sort === 'createdAt' && (order === 'asc' ? <FiChevronUp /> : <FiChevronDown />)}
-                    </button>
-                </div>
+                <div className="navbar-spacer" />
 
                 {
                     loading ? (

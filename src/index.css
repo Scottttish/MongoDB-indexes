@@ -2379,3 +2379,68 @@ select {
     width: calc(100vw - 32px);
   }
 }
+
+/* --- Premium UI Updates --- */
+.dashboard-content {
+  padding-top: 100px !important;
+}
+
+.navbar-spacer {
+  height: 20px;
+}
+
+.card-add-btn {
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #00d2ff 0%, #3dc6ff 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 15px rgba(0, 210, 255, 0.25);
+  margin-top: 12px;
+}
+
+.card-add-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 210, 255, 0.4);
+  filter: brightness(1.1);
+}
+
+.card-add-btn.added {
+  background: #f1f2f6;
+  color: #2f3542;
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+}
+
+.nav-search {
+  background: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+}
+
+.nav-search input {
+  color: #1a1b20 !important;
+}
+
+.nav-brand-icon {
+  background: #3dc6ff !important;
+}
+
+.nav-btn.cart {
+  background: #3dc6ff !important;
+  color: white !important;
+}
+
+.nav-btn:hover {
+  transform: translateY(-2px);
+}

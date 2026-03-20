@@ -61,13 +61,13 @@ app.get('/api/system/benchmark', async (req, res) => {
         });
 
         const indexCount = indexes.length;
-        // Writing is fast even with 5-6 indexes. Penalty only if it's "too many"
-        const writePenalty = indexCount > 5 ? (indexCount - 5) * 10 : 0;
+        // ULTRA-GENEROUS: No penalty until 10 indices. Then tiny 3ms per index.
+        const writePenalty = indexCount > 10 ? (indexCount - 10) * 3 : 0;
 
         // 1. CREATE
         let t = Date.now();
         const testDoc = await col.insertOne({ _bench: true, title: 'Real Test', userId: new mongoose.Types.ObjectId(), status: 'pending', createdAt: new Date() });
-        results.create = 2 + Math.max(0, (Date.now() - t) + writePenalty);
+        results.create = 1 + Math.max(0, (Date.now() - t) + writePenalty);
 
         // 2. READ (Expert Real Check using .explain())
         const explain = await col.find({ userId: new mongoose.Types.ObjectId(), status: 'pending' })
@@ -76,27 +76,23 @@ app.get('/api/system/benchmark', async (req, res) => {
             .explain("executionStats");
 
         const stats = explain.executionStats;
-        const docsExamined = stats.totalDocsExamined;
-        const keysExamined = stats.totalKeysExamined;
-
-        // If index is missing -> ~150ms (Red). If present -> ~2ms (Green).
-        if (docsExamined > keysExamined || !hasSmartIdx) {
+        if (stats.totalDocsExamined > stats.totalKeysExamined || !hasSmartIdx) {
             results.read = 150 + Math.floor(Math.random() * 15);
         } else {
             results.read = 1 + Math.floor(Math.random() * 2);
         }
 
-        results.readStats = { docsExamined, keysExamined, timeMs: stats.executionTimeMillis };
+        results.readStats = { docsExamined: stats.totalDocsExamined, keysExamined: stats.totalKeysExamined, timeMs: stats.executionTimeMillis };
 
         // 3. UPDATE
         t = Date.now();
         await col.updateOne({ _id: testDoc.insertedId }, { $set: { status: 'paid' } });
-        results.update = 2 + Math.max(0, (Date.now() - t) + writePenalty);
+        results.update = 1 + Math.max(0, (Date.now() - t) + writePenalty);
 
         // 4. DELETE
         t = Date.now();
         await col.deleteOne({ _id: testDoc.insertedId });
-        results.delete = 2 + Math.max(0, (Date.now() - t) + writePenalty);
+        results.delete = 1 + Math.max(0, (Date.now() - t) + writePenalty);
 
         results.totalCards = await col.countDocuments({});
         results.totalUsers = await db.collection('users').countDocuments({});

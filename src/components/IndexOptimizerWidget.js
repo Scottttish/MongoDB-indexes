@@ -152,20 +152,48 @@ export default function IndexOptimizerWidget() {
 
     const revert = async () => {
         setRunning(true);
-        setOpLog(p => [...p, { name: 'СИСТЕМА', action: 'восстановление...', ok: true }]);
+        const currentRecs = recs.filter(r => r.action !== 'keep' && opStatus[r.index] === 'done');
+        if (!currentRecs.length) {
+            setOpLog(p => [...p, { name: 'ИНФО', action: 'нет изменений для отката', ok: true }]);
+            setRunning(false);
+            return;
+        }
+
+        setOpLog(p => [...p, { name: 'СИСТЕМА', action: 'запуск отката...', ok: true }]);
+        for (const rec of currentRecs) {
+            setOpStatus(p => ({ ...p, [rec.index]: 'loading' }));
+            await sleep(300);
+            try {
+                if (rec.action === 'add') {
+                    await api.delete(`/api/system/indexes/${rec.collection}/${encodeURIComponent(rec.index)}`);
+                } else if (rec.action === 'delete') {
+                    const keys = rec.mongoKeys || {};
+                    await api.post('/api/system/indexes', { collection: rec.collection, keys });
+                }
+                setOpStatus(p => ({ ...p, [rec.index]: 'reverted' }));
+                setOpLog(p => [...p, { name: rec.index, action: 'откачено', ok: true }]);
+            } catch (err) {
+                setOpStatus(p => ({ ...p, [rec.index]: 'error' }));
+                setOpLog(p => [...p, { name: rec.index, action: 'ошибка отката', ok: false }]);
+            }
+        }
+        setApplied(false);
+        setRunning(false);
+        const { data } = await api.get('/api/system/indexes');
+        setIndexes(data || []);
+    };
+
+    const restoreDefaults = async () => {
+        setRunning(true);
+        setOpLog(p => [...p, { name: 'СИСТЕМА', action: 'полный сброс...', ok: true }]);
         try {
             await api.post('/api/system/restore-defaults');
-            setOpLog(p => [...p, { name: 'СИСТЕМА', action: 'заводские настройки применены', ok: true }]);
-            setApplied(false);
-            setOpStatus({});
-            // Force refetch
+            setOpLog(p => [...p, { name: 'СИСТЕМА', action: 'заводские настройки!', ok: true }]);
+            setApplied(false); setOpStatus({}); setRecs([]); setMaxStep(1); setStep(1);
             const { data } = await api.get('/api/system/indexes');
             setIndexes(data || []);
-            setRecs([]);
-            setMaxStep(1);
-            setStep(1);
         } catch (e) {
-            setOpLog(p => [...p, { name: 'ОШИБКА', action: 'сбой восстановления', ok: false }]);
+            setOpLog(p => [...p, { name: 'ОШИБКА', action: 'сбой сброса', ok: false }]);
         }
         setRunning(false);
     };
@@ -228,25 +256,37 @@ export default function IndexOptimizerWidget() {
                                             <span className='wo-ms'>…</span>
                                         </div>
                                     ))}
+                                    <button className='wo-button secondary' onClick={revert} disabled={running}>
+                                        Откатить
+                                    </button>
+                                    <button className='wo-button' style={{ background: 'transparent', fontSize: '10px', opacity: 0.5 }} onClick={restoreDefaults} disabled={running}>
+                                        Сброс настроек
+                                    </button>
                                     <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: 8 }}>Выполняется реальный запрос к MongoDB…</p>
                                 </div>
                             ) : (
                                 <div className='wo-bars'>
                                     {[['CREATE', metrics.create], ['READ', metrics.read], ['UPDATE', metrics.update], ['DELETE', metrics.delete]].map(([op, ms]) => (
-                                        <div key={op} className='wo-bar-row' style={{ alignItems: 'baseline', flexDirection: 'column', gap: 0 }}>
-                                            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                        <div key={op} style={{ marginBottom: op === 'READ' && metrics.readStats ? '20px' : '12px' }}>
+                                            <div className='wo-bar-row' style={{ alignItems: 'center' }}>
                                                 <span className='wo-op'>{op}</span>
+                                                <div className='wo-track'>
+                                                    <div className='wo-fill' style={{
+                                                        width: `${Math.min(ms * 1.5, 100)}%`,
+                                                        background: ms > 150 ? '#ff4757' : ms > 80 ? '#ffa502' : '#1dd1a1',
+                                                        transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
+                                                    }} />
+                                                </div>
                                                 <div className='wo-ms' style={{ display: 'flex', alignItems: 'baseline', gap: 2, justifyContent: 'flex-end', minWidth: 50 }}>
-                                                    <span style={{ fontWeight: 800 }}>{typeof ms === 'number' ? ms : ms}</span>
-                                                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>мс</span>
+                                                    <span style={{ fontWeight: 800 }}>{ms}</span>
+                                                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)' }}>мс</span>
                                                 </div>
                                             </div>
-                                            <div className='wo-track' style={{ width: '100%' }}><div className='wo-fill' style={{ width: `${Math.min(ms * 1.5, 100)}%`, background: ms > 100 ? '#ff4757' : ms > 50 ? '#ffa502' : '#1dd1a1' }} /></div>
                                             {op === 'READ' && metrics.readStats && (
-                                                <div className="wo-stats-detail" style={{ fontSize: '10px', color: '#888', marginTop: '6px', textAlign: 'left', fontWeight: '500', width: '100%' }}>
-                                                    <span title="Количество проверенных документов">Документов: {metrics.readStats.docsExamined}</span>
+                                                <div className="wo-stats-detail" style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '4px', textAlign: 'left', fontWeight: '500', paddingLeft: '65px' }}>
+                                                    <span>Документов: {metrics.readStats.docsExamined}</span>
                                                     <span style={{ margin: '0 6px' }}>|</span>
-                                                    <span title="Количество использованных индексных ключей">Ключей: {metrics.readStats.keysExamined}</span>
+                                                    <span>Ключей: {metrics.readStats.keysExamined}</span>
                                                     {metrics.readStats.docsExamined > metrics.readStats.keysExamined && (
                                                         <span style={{ color: '#ff4757', marginLeft: '6px' }}>⚠ Неэффективный скан</span>
                                                     )}

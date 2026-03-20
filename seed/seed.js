@@ -16,6 +16,13 @@ const paymentCardSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const PaymentCard = mongoose.model('PaymentCard', paymentCardSchema);
 
+// Hash password before saving in seed script
+userSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    this.password = await bcrypt.hash(this.password, 12);
+    next();
+});
+
 // ─── Data Templates ─────────────────────────────────────────────────────────
 const providers = {
     electricity: ['КазМунайГаз Электро', 'АлматыЭнергоСбыт', 'КЕГОК', 'ТОО EnergyPlus', 'Россети', 'Мосэнергосбыт', 'ТНС энерго', 'Петербургская сбытовая компания', 'Ставропольэнергосбыт', 'ЭнергоГарант'],
@@ -98,42 +105,60 @@ function generateCards(userId, count = 600) {
 // ─── Main ────────────────────────────────────────────────────────────────────
 async function seed() {
     console.log('🌱 Connecting to MongoDB Atlas...');
-    await mongoose.connect(MONGO_URI);
-    console.log('✅ Connected!\n');
+    console.log(`🔗 URI: ${MONGO_URI.replace(/:([^@]+)@/, ':****@')}`); // log URI without password
 
-    // Clear existing data
-    await Promise.all([User.deleteMany({}), PaymentCard.deleteMany({})]);
-    console.log('🗑️  Cleared existing data\n');
+    try {
+        await mongoose.connect(MONGO_URI, {
+            serverSelectionTimeoutMS: 10000, // 10 seconds timeout
+            connectTimeoutMS: 10000
+        });
+        console.log('✅ Connected!\n');
 
-    // Create demo user
-    const hashedPassword = await bcrypt.hash('Demo1234!', 12);
-    const user = await User.create({
-        nickname: 'Демо Пользователь',
-        email: 'demo@utility-app.kz',
-        password: hashedPassword
-    });
-    console.log(`👤 Created user: ${user.email} / Demo1234!\n`);
+        // Clear existing data
+        await Promise.all([User.deleteMany({}), PaymentCard.deleteMany({})]);
+        console.log('🗑️  Cleared existing data\n');
 
-    // Generate 600 payment cards
-    console.log('📦 Generating 600 payment cards...');
-    const cards = generateCards(user._id, 600);
-    await PaymentCard.insertMany(cards);
-    console.log(`✅ Inserted ${cards.length} payment cards!\n`);
+        // Create demo user
+        // Note: The User model in the app has a pre-save hook that hashes the password.
+        // We pass the plaintext password here and let the hook handle it.
+        const user = await User.create({
+            nickname: 'Демо Пользователь',
+            email: 'demo@utility-app.kz',
+            password: 'Demo1234!'
+        });
+        console.log(`👤 Created user: ${user.email} / Demo1234!\n`);
 
-    // Create indexes
-    console.log('📊 Creating indexes...');
-    await PaymentCard.collection.createIndex({ userId: 1, createdAt: -1 });
-    await PaymentCard.collection.createIndex({ userId: 1, category: 1 });
-    await PaymentCard.collection.createIndex({ userId: 1, status: 1 });
-    await PaymentCard.collection.createIndex({ userId: 1, amount: -1 });
-    await PaymentCard.collection.createIndex({ title: 'text', provider: 'text', description: 'text' });
-    await User.collection.createIndex({ email: 1 }, { unique: true });
-    console.log('✅ Indexes created!\n');
+        // Generate 600 payment cards
+        console.log('📦 Generating 600 payment cards...');
+        const cards = generateCards(user._id, 600);
+        await PaymentCard.insertMany(cards);
+        console.log(`✅ Inserted ${cards.length} payment cards!\n`);
 
-    console.log('🎉 Seeding complete!');
-    console.log('📧 Login: demo@utility-app.kz');
-    console.log('🔑 Password: Demo1234!');
-    await mongoose.disconnect();
+        // Create indexes
+        console.log('📊 Creating indexes...');
+        await PaymentCard.collection.createIndex({ userId: 1, createdAt: -1 });
+        await PaymentCard.collection.createIndex({ userId: 1, category: 1 });
+        await PaymentCard.collection.createIndex({ userId: 1, status: 1 });
+        await PaymentCard.collection.createIndex({ userId: 1, amount: -1 });
+        await PaymentCard.collection.createIndex({ title: 'text', provider: 'text', description: 'text' });
+        await User.collection.createIndex({ email: 1 }, { unique: true });
+        console.log('✅ Indexes created!\n');
+
+        console.log('🎉 Seeding complete!');
+        console.log('📧 Login: demo@utility-app.kz');
+        console.log('🔑 Password: Demo1234!');
+    } catch (err) {
+        console.error('\n❌ Seed failed!');
+        if (err.name === 'MongooseServerSelectionError') {
+            console.error('⚠️  CONNECTION ERROR: Could not connect to MongoDB Atlas.');
+            console.error('👉 Please ensure your IP address is WHITELISTED in the MongoDB Atlas dashboard (Network Access).');
+        } else {
+            console.error('Error details:', err);
+        }
+        process.exit(1);
+    } finally {
+        await mongoose.disconnect();
+    }
 }
 
-seed().catch(err => { console.error('Seed failed:', err); process.exit(1); });
+seed();

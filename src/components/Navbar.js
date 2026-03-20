@@ -2,10 +2,10 @@ import React from 'react';
 import { FiSearch, FiShoppingCart } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
-const LinkedInIcon = () => (
-    <svg viewBox="0 0 24 24" width="34" height="34" fill="#0A66C2" xmlns="http://www.w3.org/2000/svg">
-        <rect width="24" height="24" rx="4" fill="#0A66C2" />
-        <text x="3" y="18" fontSize="16" fontWeight="900" fill="white" fontFamily="Arial, sans-serif">in</text>
+const AppIcon = () => (
+    <svg viewBox="0 0 24 24" width="34" height="34" fill="var(--app-blue)" xmlns="http://www.w3.org/2000/svg">
+        <rect width="24" height="24" rx="4" />
+        <text x="3" y="18" fontSize="14" fontWeight="900" fill="white" fontFamily="Arial, sans-serif">UA</text>
     </svg>
 );
 
@@ -16,7 +16,7 @@ export default function Navbar({ onBasketClick, basketCount, onProfileClick, sea
     return (
         <nav className="navbar">
             <div className="navbar-logo">
-                <LinkedInIcon />
+                <AppIcon />
             </div>
 
             <div className="navbar-search">

@@ -55,7 +55,7 @@ export default function DashboardPage() {
         } finally {
             setLoading(false);
         }
-    }, [isAuthenticated, search, page]);
+    }, [isAuthenticated, search, page, showToast]);
 
     const fetchBasket = useCallback(async () => {
         if (!isAuthenticated) return;
@@ -70,11 +70,11 @@ export default function DashboardPage() {
             fetchCards();
             fetchBasket();
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, fetchCards, fetchBasket]);
 
     useEffect(() => {
         if (isAuthenticated) fetchCards();
-    }, [page]);
+    }, [page, fetchCards, isAuthenticated]);
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiSearch, FiShoppingCart, FiDatabase } from 'react-icons/fi';
+import { FiSearch, FiShoppingCart } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ onBasketClick, basketCount, onProfileClick, searchValue, onSearchChange }) {

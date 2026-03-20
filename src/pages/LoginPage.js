@@ -33,7 +33,7 @@ export default function LoginPage() {
         <div className="auth-page">
             <div className="auth-card">
                 <h1>Добро пожаловать</h1>
-                <p className="auth-subtitle">Войдите в систему управления коммунальными платежами</p>
+                <p className="auth-subtitle">Войдите в систему управления данными</p>
 
                 {error && (
                     <div className="alert-box error">

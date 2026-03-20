@@ -37,7 +37,7 @@ export default function RegisterPage() {
         <div className="auth-page">
             <div className="auth-card">
                 <h1>Создать аккаунт</h1>
-                <p className="auth-subtitle">Управляйте коммунальными платежами удобно</p>
+                <p className="auth-subtitle">Управляйте данными удобно и эффективно</p>
 
                 {error && <div className="alert-box error">{error}</div>}
 

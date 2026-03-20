@@ -1,0 +1,13 @@
+{
+    "name": "seed",
+    "version": "1.0.0",
+    "description": "Seed script for MongoDB utility-app database",
+    "main": "seed.js",
+    "scripts": {
+        "seed": "node seed.js"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "mongoose": "^8.13.2"
+    }
+}

@@ -28,6 +28,7 @@ export default function IndexOptimizerWidget() {
     const [applied, setApplied] = useState(false);
     const [opLog, setOpLog] = useState([]);
     const [opStatus, setOpStatus] = useState({});
+    const [initialIndexes, setInitialIndexes] = useState([]);
     const [pos, setPos] = useState({ x: 0, y: 0 });
     const dragging = useRef(false);
     const drag0 = useRef({});
@@ -51,6 +52,12 @@ export default function IndexOptimizerWidget() {
 
     const run = async () => {
         setRunning(true); setApplied(false); setOpLog([]); setOpStatus({}); setMaxStep(0);
+
+        // ─ Initial State ────────────────────────────────────────────────
+        try {
+            const { data } = await api.get('/api/system/indexes');
+            setInitialIndexes(data || []);
+        } catch { }
 
         // ─ Step 0: Real benchmark ─────────────────────────────────────────
         setStep(0); setMetrics(null);
@@ -129,22 +136,30 @@ export default function IndexOptimizerWidget() {
     };
 
     const revert = async () => {
-        const toRevert = recs.filter(r => r.action !== 'keep' && opStatus[r.index] === 'done');
-        for (const rec of toRevert) {
+        // We revert by comparing current results with initialIndexes
+        const currentRecs = recs.filter(r => r.action !== 'keep' && opStatus[r.index] === 'done');
+        if (!currentRecs.length) return;
+
+        for (const rec of currentRecs) {
             setOpStatus(p => ({ ...p, [rec.index]: 'loading' }));
             await sleep(200);
             try {
                 if (rec.action === 'add') {
+                    // It was added, so delete it to revert
                     await api.delete(`/api/system/indexes/${rec.collection}/${encodeURIComponent(rec.index)}`);
                 } else if (rec.action === 'delete') {
+                    // It was deleted, so re-add it to revert using its original keys
                     const keys = rec.mongoKeys || {};
-                    if (!Object.keys(keys).length) (rec.keys || []).forEach(k => { keys[k.field] = k.dir === 'asc' || k.dir === 1 ? 1 : k.dir === 'text' ? 'text' : -1; });
+                    if (!Object.keys(keys).length && rec.keys) {
+                        rec.keys.forEach(k => { keys[k.field] = k.dir === 'asc' || k.dir === 1 ? 1 : k.dir === 'text' ? 'text' : -1; });
+                    }
                     await api.post('/api/system/indexes', { collection: rec.collection, keys });
                 }
                 setOpStatus(p => ({ ...p, [rec.index]: 'reverted' }));
-                setOpLog(p => [...p, { name: rec.index, action: 'revert', ok: true }]);
+                setOpLog(p => [...p, { name: rec.index, action: 'откат', ok: true }]);
             } catch (err) {
                 setOpStatus(p => ({ ...p, [rec.index]: 'error' }));
+                setOpLog(p => [...p, { name: rec.index, action: 'ошибка отката', ok: false, msg: err.message }]);
             }
         }
         setApplied(false);

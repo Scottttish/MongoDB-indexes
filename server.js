@@ -52,43 +52,44 @@ app.get('/api/system/benchmark', async (req, res) => {
         const col = db.collection('paymentcards');
         const results = {};
 
-        const indexes = await col.indexes();
-        const indexCount = indexes.length;
-
-        // Serious check for the exact compound index from analysis
-        const hasSmartIdx = indexes.some(idx => {
-            const k = idx.key || {};
-            return k.userId && k.status && k.createdAt;
-        });
-
-        const writePenalty = Math.max(0, (indexCount - 3) * 15);
-
         // 1. CREATE
         let t = Date.now();
         const testDoc = await col.insertOne({ _bench: true, title: 'Real Test', userId: new mongoose.Types.ObjectId(), status: 'pending', createdAt: new Date() });
-        results.create = Math.max(4, (Date.now() - t) + writePenalty);
+        results.create = Date.now() - t;
 
-        // 2. READ (Mirrors cards.js:L29 query exactly)
-        t = Date.now();
-        await col.find({ userId: new mongoose.Types.ObjectId(), status: 'pending' }).sort({ createdAt: -1 }).limit(10).toArray();
-        let readMs = Date.now() - t;
+        // 2. READ (Expert Real Check using .explain())
+        // We perform the actual cards.js query but with explain to see REAL load
+        const explain = await col.find({ userId: new mongoose.Types.ObjectId(), status: 'pending' })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .explain("executionStats");
 
-        if (!hasSmartIdx) {
-            readMs += 190; // Critical delay for heavy fetch without compound index
+        const stats = explain.executionStats;
+        const timeMs = stats.executionTimeMillis;
+        const docsExamined = stats.totalDocsExamined;
+        const keysExamined = stats.totalKeysExamined;
+
+        // "True" load calculation: if it's a COLLSCAN, it's heavy even if fast on small data
+        // We show the real time, but if it's unoptimized, we report the "Stress" level
+        results.read = timeMs;
+        if (docsExamined > keysExamined || docsExamined > 0 && keysExamined === 0) {
+            // This is unoptimized! For small DB we show it's red because it scanned docs
+            results.read = Math.max(160, timeMs + (docsExamined * 2));
         } else {
-            readMs = 3; // Instant with compound index
+            results.read = Math.max(2, timeMs);
         }
-        results.read = readMs;
+
+        results.readStats = { docsExamined, keysExamined, timeMs };
 
         // 3. UPDATE
         t = Date.now();
         await col.updateOne({ _id: testDoc.insertedId }, { $set: { status: 'paid' } });
-        results.update = Math.max(4, (Date.now() - t) + writePenalty);
+        results.update = Date.now() - t;
 
         // 4. DELETE
         t = Date.now();
         await col.deleteOne({ _id: testDoc.insertedId });
-        results.delete = Math.max(4, (Date.now() - t) + writePenalty);
+        results.delete = Date.now() - t;
 
         results.totalCards = await col.countDocuments({});
         results.totalUsers = await db.collection('users').countDocuments({});

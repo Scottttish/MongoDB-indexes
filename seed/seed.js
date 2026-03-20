@@ -72,7 +72,7 @@ async function seed() {
         console.log('🗑️ DB Cleared');
 
         const user = await User.create({
-            nickname: 'Демо Пользователь',
+            nickname: 'Пользователь',
             email: 'demo@utility-app.kz',
             password: 'Demo1234!'
         });

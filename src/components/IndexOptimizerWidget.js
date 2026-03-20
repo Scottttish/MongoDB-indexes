@@ -233,13 +233,25 @@ export default function IndexOptimizerWidget() {
                             ) : (
                                 <div className='wo-bars'>
                                     {[['CREATE', metrics.create], ['READ', metrics.read], ['UPDATE', metrics.update], ['DELETE', metrics.delete]].map(([op, ms]) => (
-                                        <div key={op} className='wo-bar-row' style={{ alignItems: 'baseline' }}>
-                                            <span className='wo-op'>{op}</span>
-                                            <div className='wo-track'><div className='wo-fill' style={{ width: `${Math.min(ms * 1.5, 100)}%`, background: ms > 100 ? '#ff4757' : ms > 50 ? '#ffa502' : '#1dd1a1' }} /></div>
-                                            <div className='wo-ms' style={{ display: 'flex', alignItems: 'baseline', gap: 2, justifyContent: 'flex-end', minWidth: 50 }}>
-                                                <span style={{ fontWeight: 800 }}>{typeof ms === 'number' ? ms : ms}</span>
-                                                <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>мс</span>
+                                        <div key={op} className='wo-bar-row' style={{ alignItems: 'baseline', flexDirection: 'column', gap: 0 }}>
+                                            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                                <span className='wo-op'>{op}</span>
+                                                <div className='wo-ms' style={{ display: 'flex', alignItems: 'baseline', gap: 2, justifyContent: 'flex-end', minWidth: 50 }}>
+                                                    <span style={{ fontWeight: 800 }}>{typeof ms === 'number' ? ms : ms}</span>
+                                                    <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>мс</span>
+                                                </div>
                                             </div>
+                                            <div className='wo-track' style={{ width: '100%' }}><div className='wo-fill' style={{ width: `${Math.min(ms * 1.5, 100)}%`, background: ms > 100 ? '#ff4757' : ms > 50 ? '#ffa502' : '#1dd1a1' }} /></div>
+                                            {op === 'READ' && metrics.readStats && (
+                                                <div className="wo-stats-detail" style={{ fontSize: '10px', color: '#888', marginTop: '6px', textAlign: 'left', fontWeight: '500', width: '100%' }}>
+                                                    <span title="Количество проверенных документов">Документов: {metrics.readStats.docsExamined}</span>
+                                                    <span style={{ margin: '0 6px' }}>|</span>
+                                                    <span title="Количество использованных индексных ключей">Ключей: {metrics.readStats.keysExamined}</span>
+                                                    {metrics.readStats.docsExamined > metrics.readStats.keysExamined && (
+                                                        <span style={{ color: '#ff4757', marginLeft: '6px' }}>⚠ Неэффективный скан</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                     <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>

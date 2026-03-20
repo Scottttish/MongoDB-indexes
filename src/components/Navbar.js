@@ -8,10 +8,8 @@ export default function Navbar({ onBasketClick, basketCount, onProfileClick, sea
 
     return (
         <nav className="navbar">
-            {/* Brand */}
+            {/* Brand - Removed Logo and Text as requested */}
             <div className="navbar-brand">
-                <div className="navbar-brand-icon"><FiDatabase size={16} /></div>
-                <span className="navbar-brand-name">MongoDB<span>Indexer</span></span>
             </div>
 
             {/* Search */}

@@ -1,6 +1,7 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FiSearch, FiSliders, FiPlus, FiChevronUp, FiChevronDown } from 'react-icons/fi';
+import { FiSearch, FiPlus, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { getCards } from '../services/cardsService';
 import { getBasket, addToBasket, removeFromBasket } from '../services/basketService';
@@ -103,7 +104,9 @@ export default function DashboardPage() {
         } catch { }
     }, []);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { fetchCards(); fetchBasket(); }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { fetchCards(); }, [category, status, sort, order, page]);
 
     const handleSearchChange = (val) => {

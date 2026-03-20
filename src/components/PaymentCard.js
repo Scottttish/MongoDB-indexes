@@ -1,9 +1,9 @@
 import React from 'react';
-import { FiBolt, FiDroplet, FiWifi, FiPhone, FiTrash2, FiTv, FiShield, FiMoreHorizontal, FiThermometer, FiWind } from 'react-icons/fi';
+import { FiZap, FiDroplet, FiWifi, FiPhone, FiTrash2, FiTv, FiShield, FiMoreHorizontal, FiThermometer, FiWind } from 'react-icons/fi';
 import { FiPlus, FiCheck } from 'react-icons/fi';
 
 const CATEGORY_CONFIG = {
-    electricity: { icon: <FiBolt />, label: 'Электроэнергия', color: '#F5A623', bg: '#FFF8EE' },
+    electricity: { icon: <FiZap />, label: 'Электроэнергия', color: '#F5A623', bg: '#FFF8EE' },
     gas: { icon: <FiWind />, label: 'Газ', color: '#7B68EE', bg: '#F3F1FF' },
     water: { icon: <FiDroplet />, label: 'Вода', color: '#4DA6FF', bg: '#EEF6FF' },
     internet: { icon: <FiWifi />, label: 'Интернет', color: '#2ECC71', bg: '#EFFFEF' },

@@ -13,18 +13,22 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
-// MongoDB connection with caching for Cloud Functions
-let isConnected = false;
 const connectDB = async () => {
-  if (isConnected) return;
+  if (mongoose.connection.readyState === 1) return; // 1 = connected
+  if (mongoose.connection.readyState === 2) { // 2 = connecting
+    console.log('MongoDB is already connecting...');
+    return;
+  }
+
   const uri = process.env.MONGO_URI || functions.config().mongo?.uri || 'mongodb+srv://scott:314159265359@indexess.bq2wcic.mongodb.net/utility-app?appName=Indexess';
+
+  console.log('MongoDB connecting...');
   await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10000,
+    serverSelectionTimeoutMS: 15000,
     socketTimeoutMS: 45000,
-    family: 4 // Use IPv4
+    family: 4
   });
-  isConnected = true;
-  console.log('MongoDB connected');
+  console.log('✅ MongoDB connected successfully');
 };
 
 app.use(async (req, res, next) => {

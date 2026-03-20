@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -77,7 +76,6 @@ export default function DashboardPage() {
         if (isAuthenticated) fetchCards();
     }, [page]);
 
-    // Редирект, если не залогинен (теперь ПОСЛЕ хуков)
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }

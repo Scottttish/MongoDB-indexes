@@ -112,19 +112,33 @@ app.get('/api/system/analyze', async (req, res) => {
             const col = db.collection(colName);
             const indexes = await col.indexes();
             const stats = await col.aggregate([{ $indexStats: {} }]).toArray();
+            const existingKeys = indexes.map(idx => JSON.stringify(idx.key));
 
             if (colName === 'paymentcards') {
-                const existingKeys = indexes.map(idx => JSON.stringify(idx.key));
+                // 1. Pro Pagination (userId + status + createdAt)
                 const proIdx = { userId: 1, status: 1, createdAt: -1 };
-
                 if (!existingKeys.includes(JSON.stringify(proIdx))) {
                     recommendations.push({
-                        action: 'add',
-                        collection: 'paymentcards',
-                        index: 'userId_1_status_1_createdAt_-1',
-                        mongoKeys: proIdx,
-                        reason: 'Этот составной индекс КРИТИЧЕСКИ важен для вашей пагинации в cards.js:L29. Без него MongoDB делает COLLSCAN (сканирует все документы), что замедляет READ на 150мс+.',
-                        impact: 'critical'
+                        action: 'add', collection: 'paymentcards', index: 'pro_pagination_idx', mongoKeys: proIdx,
+                        reason: 'Этот составной индекс КРИТИЧЕСКИ важен для ваших карт (userId + status + createdAt). Без него MongoDB сканирует весь список, что вешает сайт при росте базы.', impact: 'critical'
+                    });
+                }
+
+                // 2. Pro Search (Text index)
+                const textIdx = { title: 'text', provider: 'text', description: 'text' };
+                if (!indexes.some(idx => idx.key?._fts === 'text')) {
+                    recommendations.push({
+                        action: 'add', collection: 'paymentcards', index: 'pro_search_idx', mongoKeys: textIdx,
+                        reason: 'Полнотекстовый поиск (Text Index) для cards.js:L16. Это в 10 раз быстрее, чем обычный поиск по регуляркам, и почти не грузит процессор.', impact: 'high'
+                    });
+                }
+
+                // 3. Pro Filter (Status + CreatedAt)
+                const filterIdx = { status: 1, createdAt: -1 };
+                if (!existingKeys.includes(JSON.stringify(filterIdx))) {
+                    recommendations.push({
+                        action: 'add', collection: 'paymentcards', index: 'pro_filter_status', mongoKeys: filterIdx,
+                        reason: 'Ускоряет любые выборки по статусам (например, только активные карты) на общем дашборде. Делает фильтрацию мгновенной.', impact: 'medium'
                     });
                 }
             }
@@ -132,16 +146,14 @@ app.get('/api/system/analyze', async (req, res) => {
             for (const s of stats) {
                 if (s.name === '_id_') continue;
 
-                // PROTECTION: Never recommend deleting our "Smart" patterns even if 0 accesses
-                const isSmart = (s.key.userId && s.key.status) || (s.key.userId && s.key.createdAt) || (s.key.userId && s.key.status && s.key.createdAt);
+                // PROTECTION: Never recommend deleting our "Pro" patterns
+                const k = s.key || {};
+                const isPro = (k.userId && k.status) || (k._fts === 'text') || (k.status && k.createdAt) || (k.userId && k.createdAt);
 
-                if (s.accesses?.ops === 0 && !isSmart) {
+                if (s.accesses?.ops === 0 && !isPro) {
                     recommendations.push({
-                        action: 'delete',
-                        collection: colName,
-                        index: s.name,
-                        reason: `Индекс ${s.name} не использовался с момента запуска (0 обращений). Его удаление разгрузит систему при записи (CREATE/UPDATE).`,
-                        impact: 'medium'
+                        action: 'delete', collection: colName, index: s.name,
+                        reason: `Индекс ${s.name} простаивает без дела (0 обращений). Его удаление освободит память и ускорит запись на ~5-10мс.`, impact: 'medium'
                     });
                 }
             }
@@ -197,8 +209,14 @@ app.post('/api/system/restore-defaults', async (req, res) => {
             if (colName === 'paymentcards') {
                 await col.createIndex({ userId: 1, createdAt: -1 });
                 await col.createIndex({ userId: 1, category: 1 });
+                await col.createIndex({ userId: 1, status: 1 });
+                await col.createIndex({ userId: 1, amount: -1 });
+                await col.createIndex({ title: 'text', provider: 'text', description: 'text' });
+                await col.createIndex({ dueDate: 1 });
             } else if (colName === 'users') {
                 await col.createIndex({ email: 1 }, { unique: true });
+                await col.createIndex({ nickname: 1 });
+                await col.createIndex({ createdAt: -1 });
             }
         }
         res.json({ message: 'Defaults restored', log });

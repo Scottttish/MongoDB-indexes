@@ -81,14 +81,26 @@ export default function IndexOptimizerWidget() {
             const { data } = await api.get('/api/system/analyze');
             setRawStats(data.rawStats || {});
             const recommendations = data.recommendations || [];
-            for (let i = 0; i < recommendations.length; i++) {
-                await sleep(100);
-                setRecs(p => [...p, recommendations[i]]);
+            if (recommendations.length === 0) {
+                setRecs([{ action: 'keep', index: 'Данные не найдены', reason: 'База данных пока не накопила достаточно статистики для глубокого анализа попробуйте совершить больше действий в приложении и запустить проверку снова', impact: 'low' }]);
+            } else {
+                for (let i = 0; i < recommendations.length; i++) {
+                    await sleep(150);
+                    setRecs(p => [...p, recommendations[i]]);
+                }
             }
-        } catch (e) { setRecs([]); }
+        } catch (e) {
+            setRecs([{
+                action: 'delete',
+                index: 'Ошибка анализа',
+                reason: `Не удалось получить данные от сервера ${e.message} проверьте подключение к базе данных и попробуйте еще раз`,
+                impact: 'high'
+            }]);
+        }
 
-        await sleep(400);
-        setStep(3); setMaxStep(3); setRunning(false);
+        await sleep(300);
+        setStep(2); // Stay on step 2
+        setRunning(false);
     };
 
     const applyChanges = async () => {

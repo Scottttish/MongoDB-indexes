@@ -1,7 +1,5 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { getCards } from '../services/cardsService';
 import { getBasket, addToBasket, removeFromBasket } from '../services/basketService';
@@ -24,10 +22,6 @@ export default function DashboardPage() {
     const [basketItems, setBasketItems] = useState([]);
     const [basketLoading, setBasketLoading] = useState(false);
     const [search, setSearch] = useState('');
-    const [category, setCategory] = useState('all');
-    const [status, setStatus] = useState('all');
-    const [sort, setSort] = useState('createdAt');
-    const [order, setOrder] = useState('desc');
     const [basketOpen, setBasketOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const [toasts, setToasts] = useState([]);
@@ -43,7 +37,16 @@ export default function DashboardPage() {
         if (!isAuthenticated) return;
         setLoading(true);
         try {
-            const data = await getCards({ search, category, status, sort, order, page, limit: LIMIT, ...params });
+            const data = await getCards({
+                search,
+                category: 'all',
+                status: 'all',
+                sort: 'createdAt',
+                order: 'desc',
+                page,
+                limit: LIMIT,
+                ...params
+            });
             setCards(data.cards || []);
             setTotal(data.total || 0);
             setPages(data.pages || 1);
@@ -52,7 +55,7 @@ export default function DashboardPage() {
         } finally {
             setLoading(false);
         }
-    }, [isAuthenticated, search, category, status, sort, order, page]);
+    }, [isAuthenticated, search, page]);
 
     const fetchBasket = useCallback(async () => {
         if (!isAuthenticated) return;
@@ -71,7 +74,7 @@ export default function DashboardPage() {
 
     useEffect(() => {
         if (isAuthenticated) fetchCards();
-    }, [category, status, sort, order, page]);
+    }, [page]);
 
     // Редирект, если не залогинен (теперь ПОСЛЕ хуков)
     if (!isAuthenticated) {
@@ -185,10 +188,4 @@ export default function DashboardPage() {
             </div>
         </div >
     );
-
-    function handleSort(field) {
-        if (sort === field) { setOrder(o => o === 'asc' ? 'desc' : 'asc'); }
-        else { setSort(field); setOrder('desc'); }
-        setPage(1);
-    }
 }

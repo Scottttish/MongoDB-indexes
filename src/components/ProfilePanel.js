@@ -102,6 +102,14 @@ export default function ProfilePanel({ isOpen, onClose, onToast }) {
                             <button type="submit" className="btn-save" disabled={loading}>
                                 <FiSave /> {loading ? 'Сохранение...' : 'Сохранить изменения'}
                             </button>
+                        </div>
+                    </form>
+
+                    <div className="danger-zone">
+                        <h3 className="danger-zone-title">Опасная зона</h3>
+                        <p className="danger-zone-desc">Действия ниже отменить нельзя (или они прервут сессию).</p>
+                        
+                        <div className="danger-zone-actions">
                             <button type="button" className="btn-logout" onClick={() => { logout(); onClose(); }}>
                                 <FiLogOut /> Выйти из аккаунта
                             </button>
@@ -111,8 +119,8 @@ export default function ProfilePanel({ isOpen, onClose, onToast }) {
                                     <FiTrash2 /> Удалить аккаунт
                                 </button>
                             ) : (
-                                <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, padding: 16 }}>
-                                    <p style={{ fontSize: '0.875rem', color: '#991b1b', marginBottom: 12, fontWeight: 500 }}>
+                                <div className="delete-confirm-box">
+                                    <p className="delete-confirm-text">
                                         ⚠️ Это действие необратимо! Все ваши данные будут удалены.
                                     </p>
                                     <div style={{ display: 'flex', gap: 8 }}>
@@ -126,7 +134,7 @@ export default function ProfilePanel({ isOpen, onClose, onToast }) {
                                 </div>
                             )}
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </>

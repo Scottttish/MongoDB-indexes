@@ -1,15 +1,12 @@
 import React from 'react';
-import { FiSearch, FiShoppingCart } from 'react-icons/fi';
+import { FiSearch, FiShoppingCart, FiPlus } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
-export default function Navbar({ onBasketClick, basketCount, onProfileClick, searchValue, onSearchChange }) {
-    const { user } = useAuth();
-    const initials = user?.nickname?.substring(0, 2)?.toUpperCase() || 'U';
-
+export default function Navbar({ onBasketClick, basketCount, onProfileClick, onCreateClick, searchValue, onSearchChange }) {
     return (
         <nav className="navbar">
-            {/* Brand - Removed Logo and Text as requested */}
             <div className="navbar-brand">
+                <span className="navbar-brand-name">Сайт по <span>счётчикам</span></span>
             </div>
 
             {/* Search */}
@@ -27,6 +24,12 @@ export default function Navbar({ onBasketClick, basketCount, onProfileClick, sea
 
             {/* Actions */}
             <div className="navbar-actions">
+                {/* Create Bill */}
+                <button className="nav-action-btn create-btn" onClick={onCreateClick} title="Создать счёт">
+                    <FiPlus size={18} />
+                    <span>Создать</span>
+                </button>
+
                 {/* Basket */}
                 <button className="nav-action-btn" onClick={onBasketClick} title="Корзина">
                     <div className="nav-action-icon">
@@ -35,13 +38,12 @@ export default function Navbar({ onBasketClick, basketCount, onProfileClick, sea
                             <span className="nav-badge">{basketCount > 99 ? '99+' : basketCount}</span>
                         )}
                     </div>
-                    <span>Корзина</span>
                 </button>
 
                 {/* Profile */}
                 <button className="nav-action-btn" onClick={onProfileClick} title="Профиль">
-                    <div className="nav-avatar">{initials}</div>
-                    <span>{user?.nickname || 'Профиль'}</span>
+                    <div className="nav-avatar">SH</div>
+                    <span>Scott Houston</span>
                 </button>
             </div>
         </nav>

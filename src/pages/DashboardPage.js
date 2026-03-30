@@ -15,7 +15,6 @@ const LIMIT = 12;
 export default function DashboardPage() {
     const { isAuthenticated, user } = useAuth();
     const [cards, setCards] = useState([]);
-    const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(true);
@@ -64,7 +63,6 @@ export default function DashboardPage() {
                 setCards(data.cards || []);
             }
             
-            setTotal(data.total || 0);
             setHasMore(data.pages > currentPage && data.cards?.length > 0);
         } catch (err) {
             showToast('Ошибка загрузки данных', 'error');
@@ -118,6 +116,7 @@ export default function DashboardPage() {
             }
         });
         if (node) observer.current.observe(node);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, loadingMore, hasMore, page, search, sort, category]);
 
     const handleAddToBasket = async (cardId) => {

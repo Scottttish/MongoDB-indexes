@@ -20,7 +20,6 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     
-    // Sort and Filter state
     const [sort, setSort] = useState('createdAt');
     const [order, setOrder] = useState('desc');
     const [category, setCategory] = useState('all');

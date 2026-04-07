@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const MONGO_URI = 'mongodb+srv://scott:314159265359@indexess.bq2wcic.mongodb.net/utility-app?appName=Indexess';
+const MONGO_URI = 'mongodb+srv://admin:314159265359o@cluster.aqamzoa.mongodb.net/utility-app?appName=Cluster';
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
 const userSchema = new mongoose.Schema({

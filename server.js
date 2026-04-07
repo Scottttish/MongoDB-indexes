@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -21,6 +22,49 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
         console.error('❌ MongoDB connection error:', err);
         // Do not crash the process, but allow health check to report failure
     });
+
+
+// ─── Глобальный перехватчик логов для Дашборда (M0 Free Tier Fallback) ───
+mongoose.plugin((schema) => {
+    // 1. Отслеживание запросов (Find, Update, Delete)
+    schema.pre(['find', 'findOne', 'updateOne', 'deleteOne', 'updateMany', 'deleteMany'], function() {
+        this._startTime = Date.now();
+    });
+    schema.post(['find', 'findOne', 'updateOne', 'deleteOne', 'updateMany', 'deleteMany'], function(res, next) {
+        if (this.mongooseCollection && this.mongooseCollection.name === 'analyzer_logs') return next(); 
+        
+        const millis = Date.now() - this._startTime;
+        mongoose.connection.collection('analyzer_logs').insertOne({
+            op: this.op || 'query',
+            ns: this.mongooseCollection ? ("utility-app." + this.mongooseCollection.name) : 'unknown',
+            millis: millis || 0,
+            ts: new Date(),
+            query: this.getQuery ? this.getQuery() : {}
+        }).catch(() => {});
+        next();
+    });
+
+    // 2. Отслеживание создания объектов (Save/Insert)
+    schema.pre('save', function(next) {
+        this._startTime = Date.now();
+        next();
+    });
+    schema.post('save', function(doc, next) {
+        if (doc.collection && doc.collection.name === 'analyzer_logs') return next();
+        
+        const millis = Date.now() - this._startTime;
+        mongoose.connection.collection('analyzer_logs').insertOne({
+            op: "insert",
+            ns: doc.collection ? ("utility-app." + doc.collection.name) : 'unknown',
+            millis: millis || 0,
+            ts: new Date(),
+            query: doc.toObject ? doc.toObject() : doc
+        }).catch(() => {});
+        next();
+    });
+});
+// ─────────────────────────────────────────────────────────────────────────
+
 
 // Routes
 app.use('/api/auth', authRoutes);
